@@ -1,0 +1,32 @@
+[
+  {
+    "op": "test",
+    "path": "/kind",
+    "value": "Deployment"
+  },
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/env/-",
+    "value": {
+      "name": "APP_NOTIFICATION_PRODUCER_HOST",
+      "valueFrom": {
+        "configMapKeyRef": {
+          "key": "notification-config",
+          "value": "producer.host"
+        }
+      }
+    }
+  },
+  {
+    "op": "||inject-operation||",
+    "path": "/spec/template/spec/containers/||inject-position||",
+    "value": {
+      "name": "sidecar-container"
+    }
+  },
+  {
+    "op": "copy",
+    "from": "/metadata/name",
+    "path": "/spec/template/spec/containers/||injected-position||/some-value"
+  }
+]

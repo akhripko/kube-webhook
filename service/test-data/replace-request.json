@@ -1,0 +1,35 @@
+{
+  "apiVersion": "extensions/v1beta1",
+  "kind": "Deployment",
+  "metadata": {
+    "name": "some-deployment",
+    "labels": {
+      "notification-generator": "enabled"
+    }
+  },
+  "spec": {
+    "template": {
+      "metadata": {
+        "annotations": {
+          "notification-generator": "enabled"
+        }
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "some-container"
+          },
+          {
+            "name": "sidecar-container"
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "imagePullSecrets": [
+          {
+            "name": "90poe-nexus-pull-secret"
+          }
+        ]
+      }
+    }
+  }
+}
