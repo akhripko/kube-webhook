@@ -44,18 +44,6 @@ Note:
     The scope field specifies if only cluster-scoped resources ("Cluster") or namespace-scoped resources 
     ("Namespaced") will match this rule. "*" means that there are no scope restrictions.
 
-# Generic make commands 
-
-build & deploy to an appropriate cluster
-- `local-dev` (in case of custom dev branch)
-- `local` 
-- `stage-trading` 
-- `production-trading` 
-- `stage-betting` 
-- `production-betting`
-
-see make-vars.mk, .helm/values-*.yaml
-
 # References
 - https://kubernetes.io/blog/2019/03/21/a-guide-to-kubernetes-admission-controllers/
 - https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/
