@@ -53,8 +53,8 @@ dockerise:
 	docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -f Dockerfile .
 	docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
 
-.PHONY: push_img
-deploy:
+.PHONY: push_image_to_registry
+push_image_to_registry:
 	`AWS_SHARED_CREDENTIALS_FILE=~/.aws/credentials AWS_PROFILE=prof_name aws ecr get-login --region us-west-2 --no-include-email`
 	docker push ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
 	#docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:latest
@@ -71,7 +71,7 @@ local-cert:
 	./make-cert.sh ${LOCAL_NAMESPACE} ${SERVICE}
 
 .PHONY: create-local-namespace
-deploy-namespace:
+create-local-namespace:
 	kubectl create namespace ${LOCAL_NAMESPACE}
 
 .PHONY: deploy-helloapp-default
