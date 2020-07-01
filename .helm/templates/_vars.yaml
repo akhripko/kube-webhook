@@ -1,0 +1,6 @@
+{{- define "nameService" }}
+{{- .Chart.Name }}
+{{- end }}
+{{- define "nameSecretServiceCert" }}
+{{- .Chart.Name }}-cert
+{{- end }}

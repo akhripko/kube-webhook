@@ -1,0 +1,20 @@
+containerResources:
+  sv:
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+
+daemons: []
+
+webhookServicePort: 443
+healthServicePort: 80
+failurePolicy: Ignore
+#failurePolicy: Fail
+
+logLevel: "DEBUG"
+adminUsers: "userA userB"
+systemUsers: "system:serviceaccount:kube-system:generic-garbage-collector system:node:docker-desktop system:serviceaccount:kube-system:replicaset-controller"
+
+#change to force deployment
+deploymentHash: "1"

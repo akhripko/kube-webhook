@@ -1,0 +1,10 @@
+{{- define "service.config" }}
+- name: "APP_ADMIN_USERS"
+  value: {{ quote .Values.adminUsers }}
+- name: "APP_SYSTEM_USERS"
+  value: {{ quote .Values.systemUsers }}
+- name: "APP_LOG_LEVEL"
+  value: {{ quote .Values.logLevel }}
+- name: "DEPLOYMENT_HASH"
+  value: {{ quote .Values.deploymentHash }}
+{{ end -}}

@@ -1,0 +1,23 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ .Chart.Name }}
+webhooks:
+  - name: {{ .Values.webhookName }}-mutate
+    admissionReviewVersions: ["v1", "v1beta1"]
+    failurePolicy: {{ .Values.failurePolicy }}
+    clientConfig:
+      service:
+        name: {{ .Chart.Name }}
+        namespace: {{ quote .Values.global.namespace }}
+        port: {{ .Values.webhookServicePort }}
+{{/*        path: "/mutate"*/}}
+        path: "/add-owners"
+      caBundle: {{ .Values.webhookCABundle }}
+    rules:
+      - operations: ["CREATE", "UPDATE"]
+        apiGroups: ["*"]
+        apiVersions: ["*"]
+        resources: ["deployments", "services"]
+        scope: "Namespaced"
+    sideEffects: NoneOnDryRun

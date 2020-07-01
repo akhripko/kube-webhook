@@ -1,0 +1,28 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ .Chart.Name }}
+webhooks:
+  - name: {{ .Values.webhookName }}-validate
+    admissionReviewVersions: ["v1", "v1beta1"]
+    failurePolicy: {{ .Values.failurePolicy }}
+    clientConfig:
+      service:
+        name: {{ .Chart.Name }}
+        namespace: {{ quote .Values.global.namespace }}
+        port: {{ .Values.webhookServicePort }}
+{{/*        path: "/validate"*/}}
+        path: "/add-owners"
+      caBundle: {{ .Values.webhookCABundle }}
+    rules:
+      - operations: ["DELETE"]
+        apiGroups: ["*"]
+        apiVersions: ["*"]
+        resources: ["deployments", "services", "pods"]
+        scope: "Namespaced"
+      - operations: ["CONNECT"]
+        apiGroups: ["*"]
+        apiVersions: ["*"]
+        resources: ["pods/*"]
+        scope: "Namespaced"
+    sideEffects: NoneOnDryRun

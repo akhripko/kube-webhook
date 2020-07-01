@@ -1,0 +1,74 @@
+{{- $base_image := "golang:1.14-stretch" -}}
+{{- $service_name := "k8s-acl-sv" -}}
+{{- $service_path := "/app" -}}
+{{- $project_name := (trimSuffix "-sv" $service_name) -}}
+
+project: {{ $project_name }}
+configVersion: 1
+
+---
+artifact: app
+from: {{ $base_image }}
+mount:
+{{ if (env "GOPATH") }}
+- fromPath: {{ env "GOPATH" | printf "%s/pkg" }}
+{{ else }}
+- from: build_dir
+{{ end }}
+  to: /go/pkg
+{{ if eq (env "OS") "Darwin" }}
+- fromPath: /var/run
+{{ else }}
+- fromPath: /run
+{{ end }}
+  to: /tmp/docker
+{{ if eq (env "OS") "Darwin" }}
+- fromPath: {{ env "HOME" }}/.ssh
+  to: /root/.ssh
+{{ end }}
+git:
+- add: '/'
+  to: '/src'
+  includePaths: ['*.go', 'go.mod', 'go.sum', 'cmd', 'model', 'options', 'server', 'service', 'provider']
+  stageDependencies:
+    install:
+    - "go.mod"
+    - "go.sum"
+    beforeSetup:
+    - "*.go"
+    - "cmd"
+    - "model"
+    - "options"
+    - "server"
+    - "service"
+    - "provider"
+shell:
+  install:
+  - git config --global url."ssh://git@git.syneforge.com:7999".insteadOf https://git.syneforge.com/scm
+  - go env -w GOPRIVATE=git.syneforge.com/*
+  - mkdir ~/.ssh && echo "StrictHostKeyChecking no" >> ~/.ssh/config
+  - cd /src
+  - go mod download
+
+  beforeSetup:
+  - cd /src
+  - DOCKER_HOST=unix:///tmp/docker/docker.sock OS={{ env "OS" }} go test ./...
+
+  setup:
+  - cd /src/cmd/serve
+  - >
+    CGO_ENABLED=0 GOOS=linux
+    go build -v -a -o {{ $service_path }}/serve
+  - echo "{{ env "RELEASE" | default "dirty" }}" > {{ $service_path }}/version
+  - strip --strip-unneeded {{ $service_path }}/serve
+---
+image: {{ $service_name }}
+from: alpine:latest
+import:
+- artifact: app
+  add: {{ $service_path }}
+  after: install
+docker:
+  EXPOSE: ['80', '443']
+  WORKDIR: '{{ $service_path }}'
+  CMD: ['./serve']

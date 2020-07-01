@@ -1,34 +1,64 @@
 package service
 
 import (
-	"encoding/json"
-	"fmt"
-
-	log "github.com/sirupsen/logrus"
-	admission "k8s.io/api/admission/v1beta1"
-	apitypes "k8s.io/api/apps/v1beta1"
+	admission "k8s.io/api/admission/v1"
+	authentication "k8s.io/api/authentication/v1"
+	core "k8s.io/api/core/v1"
+	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/yaml"
 )
 
-func New() (*Service, error) {
-	return &Service{}, nil
+type API interface {
+	GetPod(namespace string, name string) (*core.Pod, error)
 }
 
-type Service struct{}
-
-func (s *Service) ValidateMutation(req *admission.AdmissionRequest) (*admission.AdmissionResponse, error) {
-	var deployment *apitypes.Deployment
-	if err := json.Unmarshal(req.Object.Raw, &deployment); err != nil {
-		return nil, fmt.Errorf("unable unmarshal deployment json object %v", err)
+func New(systemUsers []string, adminUsers []string, api API) *Service {
+	return &Service{
+		adminUsers:  mapFromSlice(adminUsers),
+		systemUsers: mapFromSlice(systemUsers),
+		api:         api,
 	}
+}
 
-	log.Debug(fmt.Sprintf("req.UserInfo: %+v", req.UserInfo))
-	log.Debug(fmt.Sprintf("deployment: %+v", deployment))
-	log.Debug(fmt.Sprintf("req: %+v", req))
+type Service struct {
+	adminUsers  map[string]struct{}
+	systemUsers map[string]struct{}
+	api         API
+}
 
-	admissionResponse := &admission.AdmissionResponse{
+func (s *Service) DecodeAdmissionReview(data []byte) (*admission.AdmissionReview, error) {
+	var admissionReview admission.AdmissionReview
+	err := yaml.Unmarshal(data, &admissionReview)
+	return &admissionReview, err
+}
+
+func (s *Service) BuildAdmissionResponse(req *admission.AdmissionRequest, err error) *admission.AdmissionResponse {
+	res := admission.AdmissionResponse{
 		UID:     req.UID,
 		Allowed: true,
 	}
+	if err != nil {
+		res.Allowed = false
+		res.Result = &meta.Status{
+			Message: err.Error(),
+		}
+	}
+	return &res
+}
 
-	return admissionResponse, nil
+func (s *Service) isSystemUser(userInfo authentication.UserInfo) bool {
+	_, ok := s.systemUsers[userInfo.Username]
+	return ok
+}
+
+func (s *Service) isAdminUser(userInfo authentication.UserInfo) bool {
+	_, ok := s.adminUsers[userInfo.Username]
+	return ok
+}
+
+func (s *Service) extractOwners(reqObj *AdmissionRequestObject) []string {
+	if reqObj == nil || reqObj.Annotations == nil {
+		return nil
+	}
+	return getOwnersFromAnnotations(reqObj.Annotations)
 }

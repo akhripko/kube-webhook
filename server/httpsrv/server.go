@@ -12,7 +12,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func New(port int, service Service) (*HTTPSrv, error) {
+func New(port int, service Service) *HTTPSrv {
 	// build http server
 	httpSrv := http.Server{
 		Addr: fmt.Sprintf(":%d", port),
@@ -23,7 +23,7 @@ func New(port int, service Service) (*HTTPSrv, error) {
 	srv.setupHTTP(&httpSrv)
 	srv.service = service
 
-	return &srv, nil
+	return &srv
 }
 
 type HTTPSrv struct {
@@ -31,6 +31,12 @@ type HTTPSrv struct {
 	runErr    error
 	readiness bool
 	service   Service
+	tls       *tlsConf
+}
+
+type tlsConf struct {
+	certFile string
+	keyFile  string
 }
 
 func (s *HTTPSrv) setupHTTP(srv *http.Server) {
@@ -41,9 +47,19 @@ func (s *HTTPSrv) setupHTTP(srv *http.Server) {
 func (s *HTTPSrv) buildHandler() http.Handler {
 	r := mux.NewRouter()
 
-	r.HandleFunc("/mutate", s.mutateHandleFunc).Methods("GET")
+	r.HandleFunc("/validate", s.validateHandleFunc)
+	r.HandleFunc("/mutate", s.mutateHandleFunc)
+	r.HandleFunc("/mutate/add-owners", s.addOwnersHandleFunc)
+	r.HandleFunc("/add-owners", s.addOwnersHandleFunc)
 
 	return r
+}
+
+func (s *HTTPSrv) SetupTLS(cerfFile string, keyFile string) {
+	s.tls = &tlsConf{
+		certFile: cerfFile,
+		keyFile:  keyFile,
+	}
 }
 
 func (s *HTTPSrv) Run(ctx context.Context, wg *sync.WaitGroup) {
@@ -52,10 +68,14 @@ func (s *HTTPSrv) Run(ctx context.Context, wg *sync.WaitGroup) {
 
 	go func() {
 		defer wg.Done()
-		log.Debug("http server: addr=", s.http.Addr)
-		err := s.http.ListenAndServe()
-		s.runErr = err
-		log.Info("http server: end run > ", err)
+		log.Info("http server: addr=", s.http.Addr)
+		if s.tls != nil {
+			log.Debug("http server: tls certFile=", s.tls.certFile, " keyFile=", s.tls.keyFile)
+			s.runErr = s.http.ListenAndServeTLS(s.tls.certFile, s.tls.keyFile)
+		} else {
+			s.runErr = s.http.ListenAndServe()
+		}
+		log.Info("http server: end run > ", s.runErr)
 	}()
 
 	go func() {

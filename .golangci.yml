@@ -60,7 +60,7 @@ linters:
     - staticcheck
     - unused
     - gosimple
-    - dupl
+#    - dupl
     - gofmt
     - gosec
     - lll

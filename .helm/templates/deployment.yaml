@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "nameService" . }}
+  labels:
+    app: {{ template "nameService" . }}
+    service: {{ .Chart.Name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ template "nameService" . }}
+      service: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "nameService" . }}
+        service: {{ .Chart.Name }}
+    spec:
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "3"
+          - name: attempts
+            value: "2"
+          - name: timeout
+            value: "1"
+          - name: single-request
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: service
+                      operator: In
+                      values:
+                        - {{ .Chart.Name }}
+                    - key: type
+                      operator: In
+                      values:
+                        - webserver
+                topologyKey: kubernetes.io/hostname
+      containers:
+      - name: {{ template "nameService" . }}
+        image: {{ quote .Values.global.image }}
+        imagePullPolicy: Always
+        {{- if .Values.containerResources }}
+        {{- if .Values.containerResources.sv }}{{ toYaml .Values.containerResources.sv | trim | nindent 8 }}{{- end }}
+        {{- end }}
+        ports:
+        - name: health
+          containerPort: 80
+          protocol: TCP
+        - name: https
+          containerPort: 443
+          protocol: TCP
+        env:
+          - name: "APP_HTTP_PORT"
+            value: "443"
+          - name: "APP_INFO_PORT"
+            value: "80"
+          - name: "APP_TLS_CERT_FILE"
+            value: "/etc/certs/cert"
+          - name: "APP_TLS_KEY_FILE"
+            value: "/etc/certs/key"
+        {{- include "service.config" . | indent 10 }}
+        volumeMounts:
+          - name: cert-volume
+            readOnly: true
+            mountPath: /etc/certs
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 2
+          periodSeconds: 30
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: health
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      volumes:
+        - name: cert-volume
+          secret:
+            secretName: {{ template "nameSecretServiceCert" . }}

@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ quote .Values.name }}
+  annotations:
+    owners: {{ quote .Values.owners}}
+    blabla: abc-123
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ quote .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ quote .Values.name }}
+    spec:
+      containers:
+        - name: {{ quote .Values.name }}
+          image: {{ .Values.target }}
+          env:
+            - name: "PORT"
+              value: "8080"
+            - name: "force_deploy"
+              value: {{ quote .Values.deploymentHash }}

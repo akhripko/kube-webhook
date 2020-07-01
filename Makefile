@@ -1,24 +1,16 @@
-SHELL=/bin/bash
-ROOT_DIR := $(shell pwd)
+include *.mk
+SHELL:=/bin/bash
+REGISTRY=register.docker.com
 IMAGE_TAG := $(shell git rev-parse --short HEAD)
-IMAGE_NAME := company/srv
-REGISTRY := change-it.dkr.ecr.us-west-2.amazonaws.com
+IMAGE_NAME := kube-webhook
 
-.PHONY: ci
-ci: deps deps_check lint build test
+
+OS :=$(shell uname -s)
 
 .PHONY: mod
 mod:
-	GOSUMDB=off GO111MODULE=on GOPROXY=direct go mod download
-	GOSUMDB=off GO111MODULE=on GOPROXY=direct go mod vendor
-
-.PHONY: build
-build:
-	go build -o artifacts/svc
-
-.PHONY: run
-run:
-	go run ./main.go
+	go mod download
+	go mod vendor
 
 .PHONY: lint
 lint:
@@ -28,19 +20,64 @@ lint:
 test:
 	go test -cover -v `go list ./...`
 
+.PHONY: mockgen
+mockgen:
+	mockgen -source=server/httpsrv/service.go -destination=server/httpsrv/mock/service.go
+	mockgen -source=service/service.go -destination=service/mock/deps.go
+
+.PHONY: svc
+svc:
+	go build -mod=vendor -o artifacts/svc ./cmd/svc
+
+.PHONY: check-kubectl
+check-kubectl:
+	@which kubectl > /dev/null 2>&1 || (echo You\'re missing kubectl executable; @exit 1)
+
+define k8s-deploy
+	./make-cert.sh ${2} ${3}
+	kubectl config use-context ${1} && \
+	helm3 upgrade ${SERVICE} .helm \
+	  --install --timeout 10m --wait \
+	  --kube-context=${1} \
+	  --namespace=${2} \
+	  --set "global.namespace=${2}" \
+	  --set "global.image=${REGISTRY}/${SERVICE}:${RELEASE}" \
+	  --set "webhookName=k8s-acl.${2}.svc" \
+	  --values ".helm/${4}" \
+	  --values ".helm/cert_${2}_${3}.yaml"
+	rm -f .helm/cert_${2}_${3}.yaml
+endef
+
 .PHONY: dockerise
 dockerise:
 	docker build -t ${IMAGE_NAME}:${IMAGE_TAG} -f Dockerfile .
 	docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
 
-.PHONY: deploy
+.PHONY: push_img
 deploy:
-	`AWS_SHARED_CREDENTIALS_FILE=~/.aws/credentials AWS_PROFILE=xid aws ecr get-login --region us-west-2 --no-include-email`
+	`AWS_SHARED_CREDENTIALS_FILE=~/.aws/credentials AWS_PROFILE=prof_name aws ecr get-login --region us-west-2 --no-include-email`
 	docker push ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
 	#docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${REGISTRY}/${IMAGE_NAME}:latest
 	#docker push ${REGISTRY}/${IMAGE_NAME}:latest
 
-.PHONY: mockgen
-mockgen:
-	#mockgen -source=service/service.go -destination=service/mock/deps.go
-	mockgen -source=server/httpsrv/server.go -destination=server/httpsrv/mock/deps.go
+# local
+.PHONY: kube-local-deploy
+kube-local-deploy:
+	@echo Deploying release ${RELEASE} to local K8s Engine
+	$(call k8s-deploy,${LOCAL_KUBE_CONTEXT},${LOCAL_NAMESPACE},${SERVICE},values-local.yaml)
+
+.PHONY: local-cert
+local-cert:
+	./make-cert.sh ${LOCAL_NAMESPACE} ${SERVICE}
+
+.PHONY: create-local-namespace
+deploy-namespace:
+	kubectl create namespace ${LOCAL_NAMESPACE}
+
+.PHONY: deploy-helloapp-default
+deploy-helloapp-default:
+	helm upgrade hello-app ./test-apps/hello-app --install
+
+.PHONY: deploy-helloapp-local
+deploy-helloapp-local:
+	helm upgrade hello-app ./test-apps/hello-app --install --namespace ${LOCAL_NAMESPACE}
